@@ -2,7 +2,7 @@
 <html lang="en" dir="ltr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>CGC Job Order</title>
 <style>
 /* ─── TOKENS ─────────────────────────────────────────────── */
@@ -28,30 +28,62 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-s
 #toolbar {
   position: fixed; top: 0; left: 0; right: 0; z-index: 100;
   background: var(--navy); color: white;
-  display: flex; align-items: center; gap: 10px; padding: 10px 20px;
+  display: flex; align-items: center; gap: 8px;
+  flex-wrap: wrap;
+  padding-top: max(env(safe-area-inset-top, 10px), 10px);
+  padding-bottom: 8px;
+  padding-left: max(env(safe-area-inset-left, 12px), 12px);
+  padding-right: max(env(safe-area-inset-right, 12px), 12px);
   box-shadow: 0 2px 8px rgba(0,0,0,0.3);
 }
-#toolbar .logo { font-weight: 800; font-size: 15px; letter-spacing: 0.05em; color: var(--gold); margin-right: 8px; }
-#toolbar .sep { width: 1px; height: 24px; background: rgba(255,255,255,0.2); }
+#toolbar .logo { font-weight: 800; font-size: 14px; letter-spacing: 0.05em; color: var(--gold); margin-right: 4px; white-space: nowrap; }
+#toolbar .sep { width: 1px; height: 22px; background: rgba(255,255,255,0.2); flex-shrink: 0; }
 .tb-btn {
   background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
-  color: white; padding: 6px 14px; border-radius: var(--radius);
-  cursor: pointer; font-size: 12px; font-weight: 600; letter-spacing: 0.03em;
-  transition: background 0.15s;
+  color: white; padding: 7px 11px; border-radius: var(--radius);
+  cursor: pointer; font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+  transition: background 0.15s; white-space: nowrap; flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
 }
 .tb-btn:hover { background: rgba(255,255,255,0.2); }
+.tb-btn:active { opacity: 0.8; }
 .tb-btn.primary { background: var(--gold); border-color: var(--gold); color: var(--navy); }
 .tb-btn.primary:hover { background: #b8923e; }
 .tb-btn.danger { background: rgba(192,57,43,0.3); border-color: rgba(192,57,43,0.5); }
 .tb-btn.danger:hover { background: rgba(192,57,43,0.5); }
-#job-select { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
-  color: white; padding: 6px 10px; border-radius: var(--radius); font-size: 12px; cursor: pointer; }
+#job-select {
+  background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+  color: white; padding: 7px 8px; border-radius: var(--radius);
+  font-size: 11px; cursor: pointer; flex: 1; min-width: 0; max-width: 200px;
+}
 #job-select option { background: var(--navy); }
-#toolbar .spacer { flex: 1; }
-#save-status { font-size: 11px; color: rgba(255,255,255,0.5); min-width: 80px; }
+#toolbar .spacer { flex: 1; min-width: 4px; }
+#save-status { font-size: 10px; color: rgba(255,255,255,0.5); white-space: nowrap; }
 
 /* ─── PAGE WRAPPER ───────────────────────────────────────── */
-#page-wrap { padding: 70px 20px 40px; display: flex; justify-content: center; }
+#page-wrap {
+  /* Desktop: single toolbar row ~46px + safe area top */
+  padding-top: calc(max(env(safe-area-inset-top, 0px), 0px) + 66px);
+  padding-bottom: max(env(safe-area-inset-bottom, 20px), 20px);
+  padding-left: max(env(safe-area-inset-left, 12px), 12px);
+  padding-right: max(env(safe-area-inset-right, 12px), 12px);
+  display: flex; justify-content: center;
+}
+
+/* ─── MOBILE ─────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  #toolbar { gap: 6px; }
+  #toolbar .sep { display: none; }
+  #toolbar .spacer { display: none; }
+  #save-status { display: none; }
+  #job-select { max-width: 150px; }
+  /* toolbar wraps to ~2 rows on narrow screen */
+  #page-wrap { padding-top: calc(max(env(safe-area-inset-top, 0px), 0px) + 108px); }
+}
+@media (max-width: 390px) {
+  #page-wrap { padding-top: calc(max(env(safe-area-inset-top, 0px), 0px) + 120px); }
+  .tb-btn { padding: 7px 8px; font-size: 10px; }
+}
 
 /* ─── FORM CARD ──────────────────────────────────────────── */
 #form-card {
