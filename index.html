@@ -8,11 +8,19 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Century Gate JO">
 <meta name="theme-color" content="#1e3a8a">
+
+<!-- App icon: JF letters on blue gradient background -->
+<link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'><defs><linearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'><stop offset='0%25' stop-color='%231e3a8a'/><stop offset='100%25' stop-color='%230f172a'/></linearGradient></defs><rect width='180' height='180' rx='40' fill='url(%23g)'/><text x='90' y='125' font-family='-apple-system,BlinkMacSystemFont,sans-serif' font-size='90' font-weight='900' fill='white' text-anchor='middle'>JF</text></svg>">
+<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'><defs><linearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'><stop offset='0%25' stop-color='%231e3a8a'/><stop offset='100%25' stop-color='%230f172a'/></linearGradient></defs><rect width='180' height='180' rx='40' fill='url(%23g)'/><text x='90' y='125' font-family='-apple-system,BlinkMacSystemFont,sans-serif' font-size='90' font-weight='900' fill='white' text-anchor='middle'>JF</text></svg>">
+
 <title>Century Gate Job Order</title>
 
-<!-- CDN libraries (cached by Safari after first load, then works offline) -->
-<script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.13/dist/html-to-image.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<!-- Preconnect to CDN for faster first load -->
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+
+<!-- CDN libraries: html-to-image loaded with defer, jsPDF lazy-loaded on first PDF export -->
+<script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.13/dist/html-to-image.min.js" defer></script>
 
 <style>
 /* ===================== RESET & BASE ===================== */
@@ -22,261 +30,339 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   background: #f1f5f9;
   color: #0f172a;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   touch-action: manipulation;
+  overscroll-behavior-y: none;
 }
 button { font-family: inherit; cursor: pointer; border: none; background: none; }
 input, select, textarea { font-family: inherit; font-size: 16px; /* 16px prevents iOS zoom */ }
 input[type="date"] { min-height: 44px; }
 
 /* ===================== LAYOUT ===================== */
-#app { min-height: 100vh; display: flex; flex-direction: column; }
+#app { min-hesight: 100vh; min-height: 100vh; display: flex; flex-direction: column; min-height: 100vh; }
+
+/* Loading overlay */
+.loading-overlay {
+  position: fixed; inset: 0; background: #1e3a8a; z-index: 9999;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 16px; transition: opacity 0.3s ease;
+}
+.loading-overlay.hidden { opacity: 0; pointer-events: none; }
+.loading-logo {
+  width: 72px; height: 72px; border-radius: 16px;
+  background: linear-gradient(135deg, #1e3a8a, #0f172a);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 32px; font-weight: 900; letter-spacing: -0.02em;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+.loading-text { color: rgba(255,255,255,0.85); font-size: 13px; letter-spacing: 0.05em; }
+.loading-spinner {
+  width: 24px; height: 24px; border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff; border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* Top bar */
 .topbar {
   background: #fff; border-bottom: 1px solid #e2e8f0;
   position: sticky; top: 0; z-index: 30;
-  padding: 10px 12px;
-  padding-top: max(10px, env(safe-area-inset-top));
+  padding: 12px 16px;
+  padding-top: max(12px, env(safe-area-inset-top));
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 .topbar-inner {
   max-width: 1600px; margin: 0 auto;
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
 }
-.topbar-brand { display: flex; align-items: center; gap: 8px; }
+.topbar-brand { display: flex; align-items: center; gap: 10px; }
 .topbar-logo {
-  width: 36px; height: 36px; border-radius: 8px;
-  background: #1e3a8a; display: flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; border-radius: 10px;
+  background: linear-gradient(135deg, #1e3a8a, #0f172a);
+  display: flex; align-items: center; justify-content: center;
   color: #fff; flex-shrink: 0;
+  font-size: 16px; font-weight: 900;
+  box-shadow: 0 2px 8px rgba(30,58,138,0.25);
 }
-.topbar-title { font-size: 14px; font-weight: 700; line-height: 1.2; }
-.topbar-sub { font-size: 11px; color: #64748b; line-height: 1.2; }
-.topbar-actions { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+.topbar-title { font-size: 16px; font-weight: 700; line-height: 1.2; color: #0f172a; }
+.topbar-sub { font-size: 12px; color: #64748b; line-height: 1.2; }
+.topbar-actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* Buttons */
 .btn {
   display: inline-flex; align-items: center; justify-content: center;
-  gap: 4px; padding: 6px 12px; border-radius: 6px;
-  font-size: 13px; font-weight: 500; min-height: 36px;
-  transition: opacity 0.15s, background 0.15s;
+  gap: 6px; padding: 10px 16px; border-radius: 10px;
+  font-size: 14px; font-weight: 600; min-height: 44px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   -webkit-user-select: none; user-select: none;
-  white-space: nowrap;
+  white-space: nowrap; border: 1px solid transparent;
 }
-.btn:active { opacity: 0.7; }
+.btn:active { transform: scale(0.97); }
 .btn:disabled { opacity: 0.5; pointer-events: none; }
-.btn-outline { background: #fff; border: 1px solid #cbd5e1; color: #0f172a; }
-.btn-primary { background: #1e3a8a; color: #fff; }
-.btn-sm { padding: 4px 10px; font-size: 12px; min-height: 32px; }
-.btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+.btn-outline { background: #fff; border-color: #cbd5e1; color: #334155; }
+.btn-outline:active { background: #f8fafc; }
+.btn-primary { background: linear-gradient(135deg, #1e3a8a, #1e40af); color: #fff; box-shadow: 0 2px 8px rgba(30,58,138,0.25); }
+.btn-primary:active { background: linear-gradient(135deg, #1e3a8a, #172554); }
+.btn-sm { padding: 8px 12px; font-size: 13px; min-height: 36px; }
+.btn svg { width: 18px; height: 18px; flex-shrink: 0; }
 
 /* Main content */
 .main {
   flex: 1; max-width: 1600px; width: 100%; margin: 0 auto;
-  padding: 12px;
-  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  padding: 16px;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
 }
 
 /* Desktop split layout */
-.desktop-split {
-  display: none;
-}
+.desktop-split { display: none; }
 @media (min-width: 1024px) {
   .desktop-split {
     display: grid;
-    grid-template-columns: minmax(380px, 460px) 1fr;
-    gap: 16px;
-    height: calc(100vh - 110px);
+    grid-template-columns: minmax(400px, 520px) 1fr;
+    gap: 20px;
+    height: calc(100vh - 130px);
   }
   .mobile-tabs { display: none; }
 }
 
 /* Panel */
 .panel {
-  background: #fff; border-radius: 8px; border: 1px solid #e2e8f0;
+  background: #fff; border-radius: 16px; border: 1px solid #e2e8f0;
   overflow: hidden; display: flex; flex-direction: column;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
 }
 .panel-header {
-  padding: 8px 16px; border-bottom: 1px solid #e2e8f0;
-  background: #f8fafc; display: flex; align-items: center; gap: 8px;
-  font-size: 13px; font-weight: 600; color: #1e3a8a;
+  padding: 14px 20px; border-bottom: 1px solid #e2e8f0;
+  background: linear-gradient(180deg, #f8fafc, #fff);
+  display: flex; align-items: center; gap: 10px;
+  font-size: 15px; font-weight: 700; color: #1e3a8a;
 }
-.panel-header .hint { margin-left: auto; font-size: 11px; color: #64748b; font-weight: 400; }
-.panel-body { flex: 1; overflow-y: auto; padding: 16px; -webkit-overflow-scrolling: touch; }
+.panel-header svg { width: 18px; height: 18px; }
+.panel-header .hint { margin-left: auto; font-size: 12px; color: #94a3b8; font-weight: 400; }
+.panel-body { flex: 1; overflow-y: auto; padding: 20px; -webkit-overflow-scrolling: touch; }
 
 /* Mobile tabs */
 .mobile-tabs { display: block; }
 .tab-list {
   display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
-  background: #e2e8f0; border-radius: 8px; padding: 4px; margin-bottom: 12px;
+  background: #e2e8f0; border-radius: 12px; padding: 4px; margin-bottom: 16px;
 }
 .tab-btn {
-  padding: 10px; border-radius: 6px; font-size: 14px; font-weight: 500;
+  padding: 12px; border-radius: 10px; font-size: 15px; font-weight: 600;
   display: flex; align-items: center; justify-content: center; gap: 6px;
-  color: #64748b; transition: all 0.15s;
+  color: #64748b; transition: all 0.25s ease;
+  min-height: 44px;
 }
-.tab-btn.active { background: #fff; color: #0f172a; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
-.tab-btn svg { width: 16px; height: 16px; }
-.tab-panel { display: none; }
+.tab-btn.active { background: #fff; color: #1e3a8a; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.tab-btn svg { width: 18px; height: 18px; }
+.tab-panel { display: none; animation: fadeIn 0.3s ease; }
 .tab-panel.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
 /* Form */
 .form-section {
-  border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 8px;
-  overflow: hidden;
+  border: 1px solid #e2e8f0; border-radius: 14px; margin-bottom: 12px;
+  overflow: hidden; background: #fff;
+  transition: box-shadow 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
 }
+.form-section:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
 .form-section-header {
-  padding: 10px 14px; background: #f8fafc; font-size: 13px; font-weight: 600;
+  padding: 14px 18px; background: linear-gradient(180deg, #f8fafc, #f1f5f9);
+  font-size: 14px; font-weight: 700; color: #1e3a8a;
   display: flex; align-items: center; justify-content: space-between;
   cursor: pointer; -webkit-user-select: none; user-select: none;
+  border-bottom: 1px solid #e2e8f0;
+  transition: background 0.2s ease;
 }
-.form-section-header .chevron { transition: transform 0.2s; }
+.form-section.expanded .form-section-header { border-bottom: 1px solid #e2e8f0; }
+.form-section-header:active { background: #e2e8f0; }
+.form-section-header .chevron { transition: transform 0.25s ease; color: #94a3b8; }
 .form-section.expanded .chevron { transform: rotate(90deg); }
-.form-section-body { display: none; padding: 12px 14px; }
-.form-section.expanded .form-section-body { display: block; }
+.form-section-body { display: none; padding: 16px 18px; }
+.form-section.expanded .form-section-body { display: block; animation: fadeIn 0.3s ease; }
 
-.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 @media (max-width: 480px) { .form-grid { grid-template-columns: 1fr; } }
-.form-field { display: flex; flex-direction: column; gap: 4px; }
+.form-field { display: flex; flex-direction: column; gap: 6px; }
 .form-field.full { grid-column: 1 / -1; }
-.form-label { font-size: 11px; font-weight: 500; color: #64748b; }
+.form-label {
+  font-size: 12px; font-weight: 600; color: #475569;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
 .form-input, .form-select, .form-textarea {
-  width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1;
-  border-radius: 6px; font-size: 16px; background: #fff; color: #0f172a;
-  min-height: 40px; -webkit-appearance: none; appearance: none;
+  width: 100%; padding: 10px 14px; border: 1.5px solid #e2e8f0;
+  border-radius: 10px; font-size: 16px; background: #fff; color: #0f172a;
+  min-height: 44px; -webkit-appearance: none; appearance: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 .form-input:focus, .form-select:focus, .form-textarea:focus {
-  outline: none; border-color: #1e3a8a; box-shadow: 0 0 0 2px rgba(30,58,138,0.15);
+  outline: none; border-color: #1e3a8a; box-shadow: 0 0 0 3px rgba(30,58,138,0.12);
 }
 .form-input:read-only { background: #f8fafc; color: #475569; }
 .form-input:disabled { background: #f1f5f9; color: #94a3b8; }
-.form-textarea { min-height: 60px; resize: vertical; }
+.form-textarea { min-height: 72px; resize: vertical; }
 .form-select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px;
 }
 
 /* Fixed field with lock icon */
-.fixed-field { display: flex; align-items: center; gap: 6px; }
+.fixed-field { display: flex; align-items: center; gap: 8px; }
 .fixed-field .form-input { flex: 1; }
 .fixed-field .lock-icon { color: #94a3b8; flex-shrink: 0; }
 
 /* Job Order prefix + suffix */
 .jo-input { display: flex; align-items: stretch; }
 .jo-prefix {
-  display: inline-flex; align-items: center; padding: 0 12px;
-  background: #1e3a8a; color: #fff; font-size: 14px; font-weight: 600;
-  border-radius: 6px 0 0 6px; border: 1px solid #1e3a8a;
+  display: inline-flex; align-items: center; padding: 0 14px;
+  background: linear-gradient(135deg, #1e3a8a, #1e40af); color: #fff;
+  font-size: 14px; font-weight: 700;
+  border-radius: 10px 0 0 10px; border: 1.5px solid #1e3a8a;
 }
-.jo-input .form-input { border-radius: 0 6px 6px 0; }
+.jo-input .form-input { border-radius: 0 10px 10px 0; }
 
 /* Process block */
 .process-block {
-  border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px;
-  background: rgba(248,250,252,0.5); margin-bottom: 12px;
+  border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px;
+  background: linear-gradient(180deg, rgba(248,250,252,0.8), rgba(241,245,249,0.4));
+  margin-bottom: 14px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
 }
 .process-block:last-child { margin-bottom: 0; }
-.process-block-title { font-size: 12px; font-weight: 700; color: #1e3a8a; margin-bottom: 8px; }
+.process-block-title {
+  font-size: 13px; font-weight: 700; color: #1e3a8a; margin-bottom: 12px;
+  text-transform: uppercase; letter-spacing: 0.03em;
+}
 
-/* ===================== PREVIEW (A4) ===================== */
+/* ===================== CHIPS (Multi-select) ===================== */
+.chip-group {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  padding: 4px 0;
+}
+.chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 8px 14px; border-radius: 20px;
+  border: 1.5px solid #e2e8f0; background: #fff; color: #475569;
+  font-size: 14px; font-weight: 500; min-height: 36px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  -webkit-user-select: none; user-select: none;
+  cursor: pointer;
+}
+.chip:active { transform: scale(0.95); }
+.chip.selected {
+  background: linear-gradient(135deg, #1e3a8a, #1e40af);
+  color: #fff; border-color: #1e3a8a;
+  box-shadow: 0 2px 8px rgba(30,58,138,0.25);
+}
+.chip.selected::before {
+  content: '✓ '; font-weight: 700; margin-right: 2px;
+}
+
+/* ===================== PREVIEW (A4) — Enhanced for export ===================== */
 .preview-wrapper {
   display: flex; justify-content: center;
-  background: #e2e8f0; border-radius: 8px; padding: 16px;
+  background: #e2e8f0; border-radius: 16px; padding: 20px;
   overflow: hidden;
 }
 .preview-scaler {
   position: relative; transform-origin: top left;
-  will-change: transform;
-  width: 794px;
+  will-change: transform; width: 794px;
 }
 .job-order-preview {
   background: #fff; color: #0f172a; width: 794px; min-height: 1123px;
-  padding: 32px 36px 28px 36px;
+  padding: 40px 44px 32px 44px;
   font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
-  font-size: 11px; line-height: 1.45;
+  font-size: 13px; line-height: 1.55;
 }
 /* Header */
 .jo-header {
-  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
-  padding-bottom: 12px; border-bottom: 2px solid #1e3a8a;
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+  padding-bottom: 16px; border-bottom: 3px solid #1e3a8a;
 }
-.jo-header-left { display: flex; align-items: center; gap: 12px; }
+.jo-header-left { display: flex; align-items: center; gap: 16px; }
 .jo-logo-box {
-  width: 56px; height: 56px; border-radius: 6px;
-  background: #1e3a8a; display: flex; align-items: center; justify-content: center;
-  color: #fff;
+  width: 72px; height: 72px; border-radius: 12px;
+  background: linear-gradient(135deg, #1e3a8a, #0f172a);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 28px; font-weight: 900;
+  box-shadow: 0 4px 12px rgba(30,58,138,0.3);
+  flex-shrink: 0;
 }
-.jo-logo-box svg { width: 28px; height: 28px; }
-.jo-company-name { font-size: 18px; font-weight: 800; letter-spacing: 0.02em; line-height: 1.2; }
-.jo-header-right { text-align: right; font-size: 11px; }
+.jo-company-name { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.2; color: #0f172a; }
+.jo-header-right { text-align: right; font-size: 13px; }
 .jo-header-right .label { color: #64748b; }
-.jo-header-right .value { font-weight: 600; }
+.jo-header-right .value { font-weight: 700; color: #0f172a; }
 
 .jo-title-bar {
-  background: #1e3a8a; color: #fff; text-align: center; font-weight: 800;
-  letter-spacing: 0.2em; padding: 8px 0; margin-top: 12px;
-  font-size: 14px; border-radius: 2px;
+  background: linear-gradient(135deg, #1e3a8a, #1e40af); color: #fff;
+  text-align: center; font-weight: 900; letter-spacing: 0.3em;
+  padding: 14px 0; margin-top: 16px; font-size: 22px; border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(30,58,138,0.2);
 }
 
 /* Section */
-.jo-section { margin-top: 12px; }
+.jo-section { margin-top: 16px; }
 .jo-section-header {
-  padding: 4px 12px; font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
-  border-radius: 2px 2px 0 0; color: #fff;
+  padding: 8px 16px; font-size: 14px; font-weight: 800; letter-spacing: 0.04em;
+  border-radius: 6px 6px 0 0; color: #fff;
+  text-transform: uppercase;
 }
-.jo-section-header.dark { background: #1e3a8a; }
-.jo-section-header.light { background: #3b82f6; }
+.jo-section-header.dark { background: linear-gradient(135deg, #1e3a8a, #1e40af); }
+.jo-section-header.light { background: linear-gradient(135deg, #3b82f6, #2563eb); }
 .jo-section-body {
   border: 1px solid #e2e8f0; border-top: none;
-  padding: 8px 12px; border-radius: 0 0 2px 2px;
+  padding: 14px 18px; border-radius: 0 0 6px 6px;
+  background: #fff;
 }
 
-/* Row */
-.jo-row { display: flex; gap: 8px; padding: 2px 0; }
-.jo-row-label { font-weight: 600; color: #1e3a8a; width: 160px; flex-shrink: 0; }
-.jo-row-value { flex: 1; color: #0f172a; word-break: break-word; }
+/* Row — answer values in RED, larger font */
+.jo-row { display: flex; gap: 12px; padding: 4px 0; align-items: baseline; }
+.jo-row-label { font-weight: 700; color: #1e3a8a; width: 200px; flex-shrink: 0; font-size: 13px; }
+.jo-row-value { flex: 1; color: #dc2626; font-weight: 700; font-size: 15px; word-break: break-word; }
 
 /* Process cards grid */
-.jo-process-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 4px; }
-.jo-process-card { border: 1px solid; border-radius: 6px; overflow: hidden; }
+.jo-process-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 6px; }
+.jo-process-card { border: 1.5px solid; border-radius: 10px; overflow: hidden; }
 .jo-process-card-header {
-  display: flex; align-items: center; gap: 8px;
-  padding: 4px 8px; font-weight: 700; font-size: 11px;
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 14px; font-weight: 800; font-size: 13px;
 }
-.jo-process-card-header svg { width: 16px; height: 16px; }
-.jo-process-card-body { padding: 6px 8px; }
-.jo-process-row { display: flex; gap: 8px; padding: 2px 0; }
-.jo-process-row-label { font-weight: 600; color: #1e3a8a; width: 128px; flex-shrink: 0; font-size: 10px; }
-.jo-process-row-value { flex: 1; color: #0f172a; font-size: 10px; word-break: break-word; }
+.jo-process-card-header svg { width: 18px; height: 18px; }
+.jo-process-card-body { padding: 10px 14px; }
+.jo-process-row { display: flex; gap: 10px; padding: 3px 0; align-items: baseline; }
+.jo-process-row-label { font-weight: 700; color: #1e3a8a; width: 150px; flex-shrink: 0; font-size: 12px; }
+.jo-process-row-value { flex: 1; color: #dc2626; font-weight: 700; font-size: 13px; word-break: break-word; }
 
 /* Colors */
-.card-purple { border-color: #d8b4fe; }
-.card-purple .jo-process-card-header { background: #f3e8ff; color: #7e22ce; }
+.card-purple { border-color: #c084fc; }
+.card-purple .jo-process-card-header { background: linear-gradient(135deg, #f3e8ff, #e9d5ff); color: #7e22ce; }
 .card-teal { border-color: #5eead4; }
-.card-teal .jo-process-card-header { background: #ccfbf1; color: #0f766e; }
+.card-teal .jo-process-card-header { background: linear-gradient(135deg, #ccfbf1, #99f6e4); color: #0f766e; }
 .card-orange { border-color: #fdba74; }
-.card-orange .jo-process-card-header { background: #ffedd5; color: #c2410c; }
+.card-orange .jo-process-card-header { background: linear-gradient(135deg, #ffedd5, #fed7aa); color: #c2410c; }
 .card-green { border-color: #86efac; }
-.card-green .jo-process-card-header { background: #dcfce7; color: #15803d; }
+.card-green .jo-process-card-header { background: linear-gradient(135deg, #dcfce7, #bbf7d0); color: #15803d; }
 
 /* Approval */
-.jo-approval-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.jo-approval-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 12px; }
 .jo-sig-block { text-align: center; }
-.jo-sig-label { font-weight: 600; color: #1e3a8a; font-size: 10px; margin-bottom: 24px; }
-.jo-sig-line { border-top: 1px solid #94a3b8; padding-top: 4px; }
-.jo-sig-name { font-weight: 600; font-size: 11px; }
+.jo-sig-label { font-weight: 700; color: #1e3a8a; font-size: 12px; margin-bottom: 36px; }
+.jo-sig-line { border-top: 1.5px solid #475569; padding-top: 6px; }
+.jo-sig-name { font-weight: 700; font-size: 14px; color: #dc2626; }
 
 /* Footer */
 .jo-footer {
-  margin-top: 20px; padding-top: 12px;
+  margin-top: 24px; padding-top: 14px;
   border-top: 1px solid #e2e8f0;
-  display: flex; align-items: center; justify-content: center; gap: 8px;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
 }
-.jo-footer svg { width: 16px; height: 16px; color: #1e3a8a; }
-.jo-footer-text { font-size: 11px; color: #475569; }
-.jo-footer-note { text-align: center; font-size: 9px; color: #94a3b8; margin-top: 4px; }
+.jo-footer svg { width: 18px; height: 18px; color: #1e3a8a; }
+.jo-footer-text { font-size: 13px; color: #475569; font-weight: 500; }
+.jo-footer-note { text-align: center; font-size: 10px; color: #94a3b8; margin-top: 6px; }
 
 /* ===================== HIDDEN EXPORT PREVIEW (mobile) ===================== */
 .hidden-export-preview {
@@ -287,41 +373,52 @@ input[type="date"] { min-height: 44px; }
 /* ===================== FOOTER ===================== */
 .app-footer {
   background: #fff; border-top: 1px solid #e2e8f0; margin-top: auto;
-  padding: 10px 16px;
-  padding-bottom: max(10px, env(safe-area-inset-bottom));
+  padding: 12px 20px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
 }
 .app-footer-inner {
   max-width: 1600px; margin: 0 auto;
   display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px;
-  font-size: 11px; color: #64748b;
+  font-size: 12px; color: #94a3b8;
 }
 
 /* ===================== MODAL ===================== */
 .modal-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+  position: fixed; inset: 0; background: rgba(15,23,42,0.7);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
   z-index: 100; display: none; align-items: center; justify-content: center;
   padding: 16px;
   padding-top: max(16px, env(safe-area-inset-top));
   padding-bottom: max(16px, env(safe-area-inset-bottom));
 }
-.modal-overlay.open { display: flex; }
+.modal-overlay.open { display: flex; animation: fadeIn 0.2s ease; }
 .modal {
-  background: #fff; border-radius: 12px; max-width: 900px; width: 100%;
+  background: #fff; border-radius: 20px; max-width: 900px; width: 100%;
   max-height: 95vh; overflow: auto; -webkit-overflow-scrolling: touch;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  animation: modalIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.modal-header { padding: 16px 20px; border-bottom: 1px solid #e2e8f0; }
-.modal-title { font-size: 18px; font-weight: 700; }
-.modal-desc { font-size: 13px; color: #64748b; margin-top: 4px; }
-.modal-body { padding: 16px 20px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
-.modal-body img { max-width: 100%; max-height: 60vh; object-fit: contain; border-radius: 8px; border: 1px solid #e2e8f0; }
-.modal-body iframe { width: 100%; height: 60vh; border: 1px solid #e2e8f0; border-radius: 8px; }
-.modal-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; width: 100%; }
+@keyframes modalIn { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
+.modal-header { padding: 20px 24px; border-bottom: 1px solid #e2e8f0; }
+.modal-title { font-size: 22px; font-weight: 800; color: #0f172a; }
+.modal-desc { font-size: 14px; color: #64748b; margin-top: 6px; line-height: 1.5; }
+.modal-body { padding: 20px 24px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.modal-body img { max-width: 100%; max-height: 60vh; object-fit: contain; border-radius: 12px; border: 1px solid #e2e8f0; }
+.modal-body iframe { width: 100%; height: 60vh; border: 1px solid #e2e8f0; border-radius: 12px; }
+.modal-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; width: 100%; }
 
-/* ===================== UTILITY ===================== */
 .hidden { display: none !important; }
 </style>
 </head>
 <body>
+
+<!-- Loading overlay (shown until libraries load) -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-logo">JF</div>
+  <div class="loading-text">CENTURY GATE</div>
+  <div class="loading-spinner"></div>
+</div>
+
 <div id="app"></div>
 
 <!-- Export modal -->
@@ -350,15 +447,25 @@ var icons = {
   layers: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12,2 2,7 12,12 22,7 12,2"/><polyline points="2,17 12,22 22,17"/><polyline points="2,12 12,17 22,12"/></svg>',
   scissors: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>',
   packageCheck: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9.5 2-7 4v12l7 4 7-4V6l-7-4Z"/><path d="m9.5 18 7-4V6"/><path d="m9.5 18-7-4V6"/><path d="m9.5 22V18"/><path d="m16 8-6.5 4-6.5-4"/><path d="M14 19l-1.5-1.5L11 19"/></svg>',
-  lock: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+  lock: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
   eye: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
   pencil: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
   fileImage: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><circle cx="10" cy="13" r="2"/><path d="m20 17-1.296-1.296a2.41 2.41 0 0 0-3.408 0L9 22"/></svg>',
   fileText: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>',
   rotateCcw: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>',
   download: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
-  chevron: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polyline points="9 18 15 12 9 6"/></svg>'
+  chevron: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><polyline points="9 18 15 12 9 6"/></svg>'
 };
+
+/* ===================== CHIP OPTIONS ===================== */
+var MATERIAL_OPTIONS = ['FBB', 'GREY BACK', 'KRAFT'];
+var COLOR_OPTIONS = ['CMYK', 'Spcl Color'];  // for Outside/Inside (Printing)
+var WATER_BASE_OUT_OPTIONS = ['Glossy', 'Matte', 'Ultra Glossy'];
+var WATER_BASE_IN_OPTIONS = ['Glossy', 'Matte', 'Barrier Coating'];
+var LAMINATION_OPTIONS = ['Matte Lamination', 'Glossy Lamination'];
+var DIE_CUTTING_OPTIONS = ['New', 'Embossing', 'Foil Stamping', 'Available', 'Stripping'];
+var FINISHING_OPTIONS = ['With Glue', 'Erecting M/C', 'Gluing Folding M/C', 'W/O Glue'];
+var MOLD_OPTIONS = ['New', 'Available', 'Gluing Folding M/C', 'Window With PE'];
 
 /* ===================== STATE ===================== */
 function createDefaultState() {
@@ -370,18 +477,18 @@ function createDefaultState() {
     product: {
       productName: '', packing: '', quantity: '', price: '',
       sizeL: '', sizeW: '', sizeH: '',
-      material: 'FBB', gsm: '', deliveryDate: '', specialInstructions: ''
+      material: ['FBB'], gsm: '', deliveryDate: '', specialInstructions: ''
     },
     production: {
       printing: {
-        outside: 'CMYK', outsideSpclColor: '',
-        inside: 'Spcl Color', insideSpclColor: 'Pantone 286 C',
-        waterBaseOutside: 'Glossy', waterBaseInside: 'Matte',
+        outside: ['CMYK'], outsideSpclColor: '',
+        inside: ['Spcl Color'], insideSpclColor: 'Pantone 286 C',
+        waterBaseOutside: ['Glossy'], waterBaseInside: ['Matte'],
         instructions: ''
       },
-      lamination: { outside: 'Glossy Lamination', inside: 'Matte Lamination', instructions: '' },
-      dieCutting: { option: 'Available', instructions: '' },
-      finishing: { option: 'With Glue', mold: 'New', instructions: '' }
+      lamination: { outside: ['Glossy Lamination'], inside: ['Matte Lamination'], instructions: '' },
+      dieCutting: { option: ['Available'], instructions: '' },
+      finishing: { option: ['With Glue'], mold: ['New'], instructions: '' }
     },
     approval: { preparedBy: '', checkedBy: '', approvedBy: '' }
   };
@@ -396,6 +503,7 @@ var exportModal = null;
 var previewScale = 0.4;
 var previewHeight = 1123;
 var rafId = null;
+var jsPdfLoaded = false;
 
 /* ===================== HELPERS ===================== */
 function todaysDate() {
@@ -419,14 +527,33 @@ function setValue(obj, path, value) {
   return clone;
 }
 
-function formatColorChoice(value, spclColorName) {
-  if (!value) return '';
-  if (value === 'Spcl Color') {
-    return (spclColorName && spclColorName.trim())
-      ? 'Spcl Color: ' + spclColorName.trim()
-      : 'Spcl Color';
+// Toggle a value in an array (for multi-select chips)
+function toggleArrayValue(arr, value) {
+  if (!Array.isArray(arr)) arr = [];
+  var idx = arr.indexOf(value);
+  if (idx >= 0) {
+    return arr.filter(function(v) { return v !== value; });
   }
-  return value;
+  return arr.concat([value]);
+}
+
+// Format chip array for display
+function formatChipArray(arr) {
+  if (!Array.isArray(arr) || arr.length === 0) return '';
+  return arr.join(', ');
+}
+
+// Format Outside/Inside display — includes Spcl Color name if selected
+function formatColorChoice(arr, spclColorName) {
+  if (!Array.isArray(arr) || arr.length === 0) return '';
+  var parts = arr.slice();
+  var spclIdx = parts.indexOf('Spcl Color');
+  if (spclIdx >= 0) {
+    if (spclColorName && spclColorName.trim()) {
+      parts[spclIdx] = 'Spcl Color: ' + spclColorName.trim();
+    }
+  }
+  return parts.join(', ');
 }
 
 function formatDeliveryDate(dateStr) {
@@ -463,6 +590,20 @@ function esc(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+/* ===================== CHIPS RENDERING ===================== */
+function renderChips(path, options, selectedArr, rerenderOnChange) {
+  var selected = Array.isArray(selectedArr) ? selectedArr : [];
+  var html = '<div class="chip-group" data-chip-group="' + path + '"' +
+    (rerenderOnChange ? ' data-rerender="true"' : '') + '>';
+  options.forEach(function(opt) {
+    var isSelected = selected.indexOf(opt) >= 0;
+    html += '<button type="button" class="chip' + (isSelected ? ' selected' : '') +
+      '" data-chip-value="' + esc(opt) + '" data-path="' + path + '">' + esc(opt) + '</button>';
+  });
+  html += '</div>';
+  return html;
+}
+
 /* ===================== FORM RENDERING ===================== */
 function renderForm() {
   var d = state;
@@ -482,7 +623,7 @@ function renderForm() {
         <label class="form-label">Job Order No. (prefix is fixed)</label>
         <div class="jo-input">
           <span class="jo-prefix">${JOB_ORDER_PREFIX}</span>
-          <input class="form-input" type="text" data-path="jobOrderNo" data-type="jobOrderNo"
+          <input class="form-input" type="text" inputmode="numeric" data-path="jobOrderNo" data-type="jobOrderNo"
                  value="${esc(jobOrderSuffix(d.jobOrderNo))}" placeholder="00125">
         </div>
       </div>
@@ -510,7 +651,7 @@ function renderForm() {
     </div>
   `);
 
-  // Section 2: Product Information
+  // Section 2: Product Information — numeric inputmode on Packing/Quantity/Price/Width/Length/Height/GSM
   html += section('s2', '2. Product Information', `
     <div class="form-grid">
       <div class="form-field">
@@ -519,47 +660,42 @@ function renderForm() {
       </div>
       <div class="form-field">
         <label class="form-label">Packing</label>
-        <input class="form-input" type="text" data-path="product.packing" value="${esc(d.product.packing)}">
+        <input class="form-input" type="text" inputmode="numeric" data-path="product.packing" value="${esc(d.product.packing)}">
       </div>
       <div class="form-field">
         <label class="form-label">Quantity</label>
-        <input class="form-input" type="text" data-path="product.quantity" value="${esc(d.product.quantity)}">
+        <input class="form-input" type="text" inputmode="numeric" data-path="product.quantity" value="${esc(d.product.quantity)}">
       </div>
       <div class="form-field">
         <label class="form-label">Price</label>
-        <input class="form-input" type="text" data-path="product.price" value="${esc(d.product.price)}">
+        <input class="form-input" type="text" inputmode="numeric" data-path="product.price" value="${esc(d.product.price)}">
       </div>
       <div class="form-field">
-        <label class="form-label">Size L (mm)</label>
+        <label class="form-label">Width (mm)</label>
         <input class="form-input" type="text" inputmode="numeric" data-path="product.sizeL" value="${esc(d.product.sizeL)}">
       </div>
       <div class="form-field">
-        <label class="form-label">Size W (mm)</label>
+        <label class="form-label">Length (mm)</label>
         <input class="form-input" type="text" inputmode="numeric" data-path="product.sizeW" value="${esc(d.product.sizeW)}">
       </div>
       <div class="form-field">
-        <label class="form-label">Size H (mm)</label>
+        <label class="form-label">Height (mm)</label>
         <input class="form-input" type="text" inputmode="numeric" data-path="product.sizeH" value="${esc(d.product.sizeH)}">
       </div>
-      <div class="form-field">
+      <div class="form-field full">
         <label class="form-label">Material</label>
-        <select class="form-select" data-path="product.material">
-          <option value="">— Select —</option>
-          <option value="FBB" ${d.product.material === 'FBB' ? 'selected' : ''}>FBB</option>
-          <option value="GREY BACK" ${d.product.material === 'GREY BACK' ? 'selected' : ''}>GREY BACK</option>
-          <option value="KRAFT" ${d.product.material === 'KRAFT' ? 'selected' : ''}>KRAFT</option>
-        </select>
+        ${renderChips('product.material', MATERIAL_OPTIONS, d.product.material)}
       </div>
       <div class="form-field">
         <label class="form-label">GSM</label>
-        <input class="form-input" type="text" data-path="product.gsm" value="${esc(d.product.gsm)}">
+        <input class="form-input" type="text" inputmode="numeric" data-path="product.gsm" value="${esc(d.product.gsm)}">
       </div>
       <div class="form-field">
         <label class="form-label">Delivery Date</label>
         <input class="form-input" type="date" data-path="product.deliveryDate" value="${esc(d.product.deliveryDate)}">
       </div>
     </div>
-    <div class="form-field full" style="margin-top:10px">
+    <div class="form-field full" style="margin-top:14px">
       <label class="form-label">Special Instructions</label>
       <textarea class="form-textarea" data-path="product.specialInstructions">${esc(d.product.specialInstructions)}</textarea>
     </div>
@@ -572,54 +708,36 @@ function renderForm() {
     <div class="process-block">
       <div class="process-block-title">3.1 Printing – Colors</div>
       <div class="form-grid">
-        <div class="form-field">
-          <label class="form-label">Outside (Blank / CMYK / Spcl Color)</label>
-          <select class="form-select" data-path="production.printing.outside" data-rerender="true">
-            <option value="" ${p.printing.outside === '' ? 'selected' : ''}>Blank</option>
-            <option value="CMYK" ${p.printing.outside === 'CMYK' ? 'selected' : ''}>CMYK</option>
-            <option value="Spcl Color" ${p.printing.outside === 'Spcl Color' ? 'selected' : ''}>Spcl Color</option>
-          </select>
+        <div class="form-field full">
+          <label class="form-label">Outside</label>
+          ${renderChips('production.printing.outside', COLOR_OPTIONS, p.printing.outside, true)}
         </div>
-        ${p.printing.outside === 'Spcl Color' ? `
-        <div class="form-field">
+        ${p.printing.outside.indexOf('Spcl Color') >= 0 ? `
+        <div class="form-field full">
           <label class="form-label">Outside Spcl Color Name</label>
           <input class="form-input" type="text" data-path="production.printing.outsideSpclColor"
                  value="${esc(p.printing.outsideSpclColor)}" placeholder="e.g. Pantone 286 C">
         </div>` : ''}
-        <div class="form-field">
-          <label class="form-label">Inside (Blank / CMYK / Spcl Color)</label>
-          <select class="form-select" data-path="production.printing.inside" data-rerender="true">
-            <option value="" ${p.printing.inside === '' ? 'selected' : ''}>Blank</option>
-            <option value="CMYK" ${p.printing.inside === 'CMYK' ? 'selected' : ''}>CMYK</option>
-            <option value="Spcl Color" ${p.printing.inside === 'Spcl Color' ? 'selected' : ''}>Spcl Color</option>
-          </select>
+        <div class="form-field full">
+          <label class="form-label">Inside</label>
+          ${renderChips('production.printing.inside', COLOR_OPTIONS, p.printing.inside, true)}
         </div>
-        ${p.printing.inside === 'Spcl Color' ? `
-        <div class="form-field">
+        ${p.printing.inside.indexOf('Spcl Color') >= 0 ? `
+        <div class="form-field full">
           <label class="form-label">Inside Spcl Color Name</label>
           <input class="form-input" type="text" data-path="production.printing.insideSpclColor"
                  value="${esc(p.printing.insideSpclColor)}" placeholder="e.g. Pantone 286 C">
         </div>` : ''}
-        <div class="form-field">
+        <div class="form-field full">
           <label class="form-label">Water Base Outside</label>
-          <select class="form-select" data-path="production.printing.waterBaseOutside">
-            <option value="" ${p.printing.waterBaseOutside === '' ? 'selected' : ''}>Blank</option>
-            <option value="Glossy" ${p.printing.waterBaseOutside === 'Glossy' ? 'selected' : ''}>Glossy</option>
-            <option value="Matte" ${p.printing.waterBaseOutside === 'Matte' ? 'selected' : ''}>Matte</option>
-            <option value="Ultra Glossy" ${p.printing.waterBaseOutside === 'Ultra Glossy' ? 'selected' : ''}>Ultra Glossy</option>
-          </select>
+          ${renderChips('production.printing.waterBaseOutside', WATER_BASE_OUT_OPTIONS, p.printing.waterBaseOutside)}
         </div>
-        <div class="form-field">
+        <div class="form-field full">
           <label class="form-label">Water Base Inside</label>
-          <select class="form-select" data-path="production.printing.waterBaseInside">
-            <option value="" ${p.printing.waterBaseInside === '' ? 'selected' : ''}>Blank</option>
-            <option value="Glossy" ${p.printing.waterBaseInside === 'Glossy' ? 'selected' : ''}>Glossy</option>
-            <option value="Matte" ${p.printing.waterBaseInside === 'Matte' ? 'selected' : ''}>Matte</option>
-            <option value="Barrier Coating" ${p.printing.waterBaseInside === 'Barrier Coating' ? 'selected' : ''}>Barrier Coating</option>
-          </select>
+          ${renderChips('production.printing.waterBaseInside', WATER_BASE_IN_OPTIONS, p.printing.waterBaseInside)}
         </div>
       </div>
-      <div class="form-field full" style="margin-top:10px">
+      <div class="form-field full" style="margin-top:14px">
         <label class="form-label">Special Instructions</label>
         <textarea class="form-textarea" data-path="production.printing.instructions">${esc(p.printing.instructions)}</textarea>
       </div>
@@ -629,24 +747,16 @@ function renderForm() {
     <div class="process-block">
       <div class="process-block-title">3.2 Lamination</div>
       <div class="form-grid">
-        <div class="form-field">
-          <label class="form-label">Outside (Matte / Glossy Lamination)</label>
-          <select class="form-select" data-path="production.lamination.outside">
-            <option value="" ${p.lamination.outside === '' ? 'selected' : ''}>Blank</option>
-            <option value="Matte Lamination" ${p.lamination.outside === 'Matte Lamination' ? 'selected' : ''}>Matte Lamination</option>
-            <option value="Glossy Lamination" ${p.lamination.outside === 'Glossy Lamination' ? 'selected' : ''}>Glossy Lamination</option>
-          </select>
+        <div class="form-field full">
+          <label class="form-label">Outside</label>
+          ${renderChips('production.lamination.outside', LAMINATION_OPTIONS, p.lamination.outside)}
         </div>
-        <div class="form-field">
-          <label class="form-label">Inside (Matte / Glossy Lamination)</label>
-          <select class="form-select" data-path="production.lamination.inside">
-            <option value="" ${p.lamination.inside === '' ? 'selected' : ''}>Blank</option>
-            <option value="Matte Lamination" ${p.lamination.inside === 'Matte Lamination' ? 'selected' : ''}>Matte Lamination</option>
-            <option value="Glossy Lamination" ${p.lamination.inside === 'Glossy Lamination' ? 'selected' : ''}>Glossy Lamination</option>
-          </select>
+        <div class="form-field full">
+          <label class="form-label">Inside</label>
+          ${renderChips('production.lamination.inside', LAMINATION_OPTIONS, p.lamination.inside)}
         </div>
       </div>
-      <div class="form-field full" style="margin-top:10px">
+      <div class="form-field full" style="margin-top:14px">
         <label class="form-label">Special Instructions</label>
         <textarea class="form-textarea" data-path="production.lamination.instructions">${esc(p.lamination.instructions)}</textarea>
       </div>
@@ -655,20 +765,11 @@ function renderForm() {
     <!-- 3.3 Die Cutting -->
     <div class="process-block">
       <div class="process-block-title">3.3 Die Cutting</div>
-      <div class="form-grid">
-        <div class="form-field full">
-          <label class="form-label">Die Cutting (New / Embossing / Foil Stamping / Available / Stripping)</label>
-          <select class="form-select" data-path="production.dieCutting.option">
-            <option value="" ${p.dieCutting.option === '' ? 'selected' : ''}>Blank</option>
-            <option value="New" ${p.dieCutting.option === 'New' ? 'selected' : ''}>New</option>
-            <option value="Embossing" ${p.dieCutting.option === 'Embossing' ? 'selected' : ''}>Embossing</option>
-            <option value="Foil Stamping" ${p.dieCutting.option === 'Foil Stamping' ? 'selected' : ''}>Foil Stamping</option>
-            <option value="Available" ${p.dieCutting.option === 'Available' ? 'selected' : ''}>Available</option>
-            <option value="Stripping" ${p.dieCutting.option === 'Stripping' ? 'selected' : ''}>Stripping</option>
-          </select>
-        </div>
+      <div class="form-field full">
+        <label class="form-label">Die Cutting</label>
+        ${renderChips('production.dieCutting.option', DIE_CUTTING_OPTIONS, p.dieCutting.option)}
       </div>
-      <div class="form-field full" style="margin-top:10px">
+      <div class="form-field full" style="margin-top:14px">
         <label class="form-label">Special Instructions</label>
         <textarea class="form-textarea" data-path="production.dieCutting.instructions">${esc(p.dieCutting.instructions)}</textarea>
       </div>
@@ -677,29 +778,15 @@ function renderForm() {
     <!-- 3.4 Finishing -->
     <div class="process-block">
       <div class="process-block-title">3.4 Finishing</div>
-      <div class="form-grid">
-        <div class="form-field">
-          <label class="form-label">Finishing (With Glue / Erecting M/C / Gluing Folding M/C / W/O Glue)</label>
-          <select class="form-select" data-path="production.finishing.option">
-            <option value="" ${p.finishing.option === '' ? 'selected' : ''}>Blank</option>
-            <option value="With Glue" ${p.finishing.option === 'With Glue' ? 'selected' : ''}>With Glue</option>
-            <option value="Erecting M/C" ${p.finishing.option === 'Erecting M/C' ? 'selected' : ''}>Erecting M/C</option>
-            <option value="Gluing Folding M/C" ${p.finishing.option === 'Gluing Folding M/C' ? 'selected' : ''}>Gluing Folding M/C</option>
-            <option value="W/O Glue" ${p.finishing.option === 'W/O Glue' ? 'selected' : ''}>W/O Glue</option>
-          </select>
-        </div>
-        <div class="form-field">
-          <label class="form-label">Mold (New / Available / Gluing Folding M/C / Window With PE)</label>
-          <select class="form-select" data-path="production.finishing.mold">
-            <option value="" ${p.finishing.mold === '' ? 'selected' : ''}>Blank</option>
-            <option value="New" ${p.finishing.mold === 'New' ? 'selected' : ''}>New</option>
-            <option value="Available" ${p.finishing.mold === 'Available' ? 'selected' : ''}>Available</option>
-            <option value="Gluing Folding M/C" ${p.finishing.mold === 'Gluing Folding M/C' ? 'selected' : ''}>Gluing Folding M/C</option>
-            <option value="Window With PE" ${p.finishing.mold === 'Window With PE' ? 'selected' : ''}>Window With PE</option>
-          </select>
-        </div>
+      <div class="form-field full">
+        <label class="form-label">Finishing</label>
+        ${renderChips('production.finishing.option', FINISHING_OPTIONS, p.finishing.option)}
       </div>
-      <div class="form-field full" style="margin-top:10px">
+      <div class="form-field full" style="margin-top:14px">
+        <label class="form-label">Mold</label>
+        ${renderChips('production.finishing.mold', MOLD_OPTIONS, p.finishing.mold)}
+      </div>
+      <div class="form-field full" style="margin-top:14px">
         <label class="form-label">Special Instructions</label>
         <textarea class="form-textarea" data-path="production.finishing.instructions">${esc(p.finishing.instructions)}</textarea>
       </div>
@@ -769,20 +856,20 @@ function renderPreviewHTML(d) {
 
   var html = '<div class="job-order-preview" id="jobOrderPreview">';
 
-  // Header
+  // Header — prominent logo box with "JF"
   html += '<div class="jo-header">' +
     '<div class="jo-header-left">' +
-      '<div class="jo-logo-box">' + icons.shieldCheck + '</div>' +
+      '<div class="jo-logo-box">JF</div>' +
       '<div><div class="jo-company-name">' + esc(d.company.name) + '</div></div>' +
     '</div>' +
     '<div class="jo-header-right">' +
-      '<div style="font-weight:600">Job Order</div>' +
-      '<div style="margin-top:4px"><span class="label">No.: </span><span class="value">' + esc(d.jobOrderNo) + '</span></div>' +
+      '<div style="font-weight:800;font-size:15px;color:#1e3a8a">Job Order</div>' +
+      '<div style="margin-top:6px"><span class="label">No.: </span><span class="value">' + esc(d.jobOrderNo) + '</span></div>' +
       '<div><span class="label">Date: </span><span class="value">' + esc(d.date) + '</span></div>' +
     '</div>' +
   '</div>';
 
-  // Title bar
+  // Title bar — significantly larger
   html += '<div class="jo-title-bar">JOB ORDER</div>';
 
   // Section 1: Customer
@@ -791,16 +878,16 @@ function renderPreviewHTML(d) {
     row('Sales Representative', d.customer.salesRepresentative)
   );
 
-  // Section 2: Product
+  // Section 2: Product — renamed labels: Width/Length/Height
   html += joSection('2. PRODUCT INFORMATION', 'light',
     row('Product Name', d.product.productName) +
     row('Packing', d.product.packing) +
     row('Quantity', d.product.quantity) +
     row('Price', d.product.price) +
-    row('Size L', d.product.sizeL ? d.product.sizeL + ' mm' : '') +
-    row('Size W', d.product.sizeW ? d.product.sizeW + ' mm' : '') +
-    row('Size H', d.product.sizeH ? d.product.sizeH + ' mm' : '') +
-    row('Material', d.product.material) +
+    row('Width', d.product.sizeL ? d.product.sizeL + ' mm' : '') +
+    row('Length', d.product.sizeW ? d.product.sizeW + ' mm' : '') +
+    row('Height', d.product.sizeH ? d.product.sizeH + ' mm' : '') +
+    row('Material', formatChipArray(d.product.material)) +
     row('GSM', d.product.gsm) +
     row('Delivery Date', formatDeliveryDate(d.product.deliveryDate)) +
     row('Special Instructions', d.product.specialInstructions)
@@ -812,22 +899,22 @@ function renderPreviewHTML(d) {
       processCard('card-purple', icons.printer, '3.1', 'PRINTING – COLORS', [
         ['Outside', formatColorChoice(p.printing.outside, p.printing.outsideSpclColor)],
         ['Inside', formatColorChoice(p.printing.inside, p.printing.insideSpclColor)],
-        ['Water Base Outside', p.printing.waterBaseOutside],
-        ['Water Base Inside', p.printing.waterBaseInside],
+        ['Water Base Outside', formatChipArray(p.printing.waterBaseOutside)],
+        ['Water Base Inside', formatChipArray(p.printing.waterBaseInside)],
         ['Special Instructions', p.printing.instructions]
       ]) +
       processCard('card-teal', icons.layers, '3.2', 'LAMINATION', [
-        ['Outside', p.lamination.outside],
-        ['Inside', p.lamination.inside],
+        ['Outside', formatChipArray(p.lamination.outside)],
+        ['Inside', formatChipArray(p.lamination.inside)],
         ['Special Instructions', p.lamination.instructions]
       ]) +
       processCard('card-orange', icons.scissors, '3.3', 'DIE CUTTING', [
-        ['Die Cutting', p.dieCutting.option],
+        ['Die Cutting', formatChipArray(p.dieCutting.option)],
         ['Special Instructions', p.dieCutting.instructions]
       ]) +
       processCard('card-green', icons.packageCheck, '3.4', 'FINISHING', [
-        ['Finishing', p.finishing.option],
-        ['Mold', p.finishing.mold],
+        ['Finishing', formatChipArray(p.finishing.option)],
+        ['Mold', formatChipArray(p.finishing.mold)],
         ['Special Instructions', p.finishing.instructions]
       ]) +
     '</div>'
@@ -867,7 +954,7 @@ function renderApp() {
     <header class="topbar">
       <div class="topbar-inner">
         <div class="topbar-brand">
-          <div class="topbar-logo">${icons.shieldCheck}</div>
+          <div class="topbar-logo">JF</div>
           <div>
             <div class="topbar-title">Century Gate Job Order</div>
             <div class="topbar-sub">Fill the form, export PNG / PDF</div>
@@ -920,7 +1007,7 @@ function renderApp() {
           </div>
           <div class="tab-panel ${activeTab === 'preview' ? 'active' : ''}" id="tabPreview">
             <div class="preview-wrapper" id="mobilePreviewWrapper">
-              <div class="preview-scaler" id="mobilePreviewScaler" style="transform:scale(${previewScale})">
+              <div class="preview-scaler" id="mobilePreviewScaler">
                 ${previewHTML}
               </div>
             </div>
@@ -939,7 +1026,6 @@ function renderApp() {
     </footer>
   `;
 
-  // Hidden export preview (mobile only)
   var hiddenPreview = '';
   if (!isDesktop) {
     hiddenPreview = '<div class="hidden-export-preview" id="hiddenExportPreview">' + previewHTML + '</div>';
@@ -947,10 +1033,8 @@ function renderApp() {
 
   app.innerHTML = topbar + main + footer + hiddenPreview;
 
-  // Attach event listeners
   attachListeners();
 
-  // Update mobile preview scale
   if (!isDesktop) {
     updateMobileScale();
   }
@@ -974,30 +1058,38 @@ function attachListeners() {
       schedulePreviewUpdate();
     });
 
-    // Select changes (need to re-render form for conditional Spcl Color inputs)
-    formContainer.addEventListener('change', function(e) {
-      var el = e.target;
-      var path = el.getAttribute('data-path');
-      if (!path) return;
-      state = setValue(state, path, el.value);
-
-      // Check if this select needs form re-render (conditional fields)
-      var rerender = el.getAttribute('data-rerender') === 'true';
-      if (rerender) {
-        // Re-render form to show/hide Spcl Color inputs
-        formContainer.innerHTML = renderForm();
-      }
-      schedulePreviewUpdate();
-    });
-
-    // Section toggles
+    // Chip clicks (multi-select)
     formContainer.addEventListener('click', function(e) {
+      var chip = e.target.closest('.chip');
+      if (chip) {
+        var path = chip.getAttribute('data-path');
+        var value = chip.getAttribute('data-chip-value');
+        var group = chip.closest('.chip-group');
+        var rerender = group && group.getAttribute('data-rerender') === 'true';
+        if (path) {
+          var currentArr = getValue(state, path);
+          var newArr = toggleArrayValue(currentArr, value);
+          state = setValue(state, path, newArr);
+
+          if (rerender) {
+            // Re-render form to show/hide Spcl Color inputs
+            formContainer.innerHTML = renderForm();
+          } else {
+            // Just toggle the chip class
+            chip.classList.toggle('selected');
+          }
+          schedulePreviewUpdate();
+        }
+        return;
+      }
+
+      // Section toggles
       var toggle = e.target.closest('[data-toggle]');
       if (toggle) {
         var id = toggle.getAttribute('data-toggle');
         openSections[id] = !openSections[id];
-        var section = toggle.closest('.form-section');
-        if (section) section.classList.toggle('expanded');
+        var sectionEl = toggle.closest('.form-section');
+        if (sectionEl) sectionEl.classList.toggle('expanded');
       }
     });
 
@@ -1054,19 +1146,15 @@ function schedulePreviewUpdate() {
 function updatePreviewOnly() {
   var previewHTML = renderPreviewHTML(state);
 
-  // Update visible desktop preview
   var desktopPreview = document.getElementById('previewVisible');
   if (desktopPreview) desktopPreview.innerHTML = previewHTML;
 
-  // Update mobile visible preview (inside scaler)
   var scaler = document.getElementById('mobilePreviewScaler');
   if (scaler) scaler.innerHTML = previewHTML;
 
-  // Update hidden export preview (mobile)
   var hidden = document.getElementById('hiddenExportPreview');
   if (hidden) hidden.innerHTML = previewHTML;
 
-  // Re-measure mobile scale
   if (!isDesktop) updateMobileScale();
 }
 
@@ -1076,17 +1164,15 @@ function updateMobileScale() {
   var scaler = document.getElementById('mobilePreviewScaler');
   if (!wrapper || !scaler) return;
 
-  var availW = wrapper.clientWidth - 32; // padding
+  var availW = wrapper.clientWidth - 40; // padding
   var newScale = Math.min(1, Math.max(0.2, availW / 794));
 
-  // Measure inner height (before applying scale)
   var innerEl = scaler.querySelector('.job-order-preview');
   var innerH = innerEl ? innerEl.offsetHeight : 1123;
 
   previewScale = newScale;
   previewHeight = innerH;
 
-  // Center using position:absolute + margin-left (most reliable across browsers)
   var scaledWidth = 794 * newScale;
   scaler.style.transform = 'scale(' + newScale + ')';
   scaler.style.transformOrigin = 'top left';
@@ -1095,7 +1181,7 @@ function updateMobileScale() {
   scaler.style.top = '0';
   scaler.style.marginLeft = -(scaledWidth / 2) + 'px';
   wrapper.style.position = 'relative';
-  wrapper.style.height = (innerH * newScale + 32) + 'px';
+  wrapper.style.height = (innerH * newScale + 40) + 'px';
 }
 
 /* ===================== RESET ===================== */
@@ -1113,10 +1199,34 @@ function getExportElement() {
   }
 }
 
+// Lazy-load jsPDF only when needed
+function loadJsPdf() {
+  return new Promise(function(resolve, reject) {
+    if (jsPdfLoaded && window.jspdf) {
+      resolve(window.jspdf);
+      return;
+    }
+    var script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js';
+    script.onload = function() {
+      jsPdfLoaded = true;
+      resolve(window.jspdf);
+    };
+    script.onerror = function() {
+      reject(new Error('Failed to load jsPDF library'));
+    };
+    document.head.appendChild(script);
+  });
+}
+
 function doExport(kind) {
   if (busy) return;
   var el = getExportElement();
   if (!el) return;
+  if (typeof htmlToImage === 'undefined') {
+    alert('Libraries still loading. Please wait a moment and try again.');
+    return;
+  }
 
   setBusy(kind);
   var baseFilename = 'job-order-' + (state.jobOrderNo || 'export');
@@ -1133,67 +1243,65 @@ function doExport(kind) {
           setBusy(null);
         });
     } else {
-      // PDF
-      htmlToImage.toPng(el, { pixelRatio: 2, cacheBust: true, backgroundColor: '#ffffff' })
-        .then(function(pngDataUrl) {
-          var img = new Image();
-          img.onload = function() {
-            try {
-              var jsPDF = window.jspdf.jsPDF;
-              var pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-              var pageWidth = pdf.internal.pageSize.getWidth();
-              var pageHeight = pdf.internal.pageSize.getHeight();
-              var imgWidthMm = pageWidth;
-              var imgHeightMm = (img.height * imgWidthMm) / img.width;
+      // Lazy-load jsPDF then proceed
+      loadJsPdf().then(function() {
+        return htmlToImage.toPng(el, { pixelRatio: 2, cacheBust: true, backgroundColor: '#ffffff' });
+      }).then(function(pngDataUrl) {
+        var img = new Image();
+        img.onload = function() {
+          try {
+            var jsPDF = window.jspdf.jsPDF;
+            var pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+            var pageWidth = pdf.internal.pageSize.getWidth();
+            var pageHeight = pdf.internal.pageSize.getHeight();
+            var imgWidthMm = pageWidth;
+            var imgHeightMm = (img.height * imgWidthMm) / img.width;
 
-              if (imgHeightMm <= pageHeight) {
-                pdf.addImage(pngDataUrl, 'PNG', 0, 0, imgWidthMm, imgHeightMm);
-              } else {
-                // Multi-page split
-                var pxPerMm = img.width / pageWidth;
-                var pageSlicePx = Math.floor(pageHeight * pxPerMm);
-                var position = 0;
-                while (position < img.height) {
-                  var sliceHeight = Math.min(pageSlicePx, img.height - position);
-                  var sliceCanvas = document.createElement('canvas');
-                  sliceCanvas.width = img.width;
-                  sliceCanvas.height = sliceHeight;
-                  var ctx = sliceCanvas.getContext('2d');
-                  ctx.fillStyle = '#ffffff';
-                  ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
-                  ctx.drawImage(img, 0, position, img.width, sliceHeight, 0, 0, img.width, sliceHeight);
-                  var sliceData = sliceCanvas.toDataURL('image/png');
-                  if (position > 0) pdf.addPage();
-                  var sliceHeightMm = (sliceHeight * imgWidthMm) / img.width;
-                  pdf.addImage(sliceData, 'PNG', 0, 0, imgWidthMm, sliceHeightMm);
-                  position += sliceHeight;
-                }
+            if (imgHeightMm <= pageHeight) {
+              pdf.addImage(pngDataUrl, 'PNG', 0, 0, imgWidthMm, imgHeightMm);
+            } else {
+              var pxPerMm = img.width / pageWidth;
+              var pageSlicePx = Math.floor(pageHeight * pxPerMm);
+              var position = 0;
+              while (position < img.height) {
+                var sliceHeight = Math.min(pageSlicePx, img.height - position);
+                var sliceCanvas = document.createElement('canvas');
+                sliceCanvas.width = img.width;
+                sliceCanvas.height = sliceHeight;
+                var ctx = sliceCanvas.getContext('2d');
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+                ctx.drawImage(img, 0, position, img.width, sliceHeight, 0, 0, img.width, sliceHeight);
+                var sliceData = sliceCanvas.toDataURL('image/png');
+                if (position > 0) pdf.addPage();
+                var sliceHeightMm = (sliceHeight * imgWidthMm) / img.width;
+                pdf.addImage(sliceData, 'PNG', 0, 0, imgWidthMm, sliceHeightMm);
+                position += sliceHeight;
               }
-              var dataUrl = pdf.output('datauristring');
-              openModal('pdf', dataUrl, baseFilename + '.pdf');
-              setBusy(null);
-            } catch (err) {
-              alert('PDF generation failed: ' + err.message);
-              setBusy(null);
             }
-          };
-          img.onerror = function() {
-            alert('Image load failed');
+            var dataUrl = pdf.output('datauristring');
+            openModal('pdf', dataUrl, baseFilename + '.pdf');
             setBusy(null);
-          };
-          img.src = pngDataUrl;
-        })
-        .catch(function(err) {
-          alert('Export failed: ' + err.message);
+          } catch (err) {
+            alert('PDF generation failed: ' + err.message);
+            setBusy(null);
+          }
+        };
+        img.onerror = function() {
+          alert('Image load failed');
           setBusy(null);
-        });
+        };
+        img.src = pngDataUrl;
+      }).catch(function(err) {
+        alert('Export failed: ' + err.message);
+        setBusy(null);
+      });
     }
   }, 50);
 }
 
 function setBusy(kind) {
   busy = kind;
-  // Update button states without full re-render
   var buttons = document.querySelectorAll('[data-action]');
   buttons.forEach(function(btn) {
     var action = btn.getAttribute('data-action');
@@ -1239,9 +1347,7 @@ function openModal(kind, dataUrl, filename) {
   document.getElementById('modalOpenTab').addEventListener('click', function() {
     window.open(dataUrl, '_blank');
   });
-  document.getElementById('modalDownload').addEventListener('click', function() {
-    downloadFromModal();
-  });
+  document.getElementById('modalDownload').addEventListener('click', downloadFromModal);
   document.getElementById('modalClose').addEventListener('click', closeModal);
 }
 
@@ -1270,7 +1376,6 @@ function downloadFromModal() {
     document.body.removeChild(a);
     setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
   } catch (e) {
-    // iOS fallback — open in new tab
     window.open(exportModal.dataUrl, '_blank');
   }
 }
@@ -1292,8 +1397,33 @@ window.addEventListener('resize', function() {
 });
 
 /* ===================== INIT ===================== */
-function init() {
+function hideLoadingAndInit() {
+  var overlay = document.getElementById('loadingOverlay');
+  if (overlay) {
+    overlay.classList.add('hidden');
+    setTimeout(function() { overlay.remove(); }, 300);
+  }
   renderApp();
+}
+
+function init() {
+  // Wait for html-to-image to load (it's deferred)
+  if (typeof htmlToImage === 'undefined') {
+    // Listen for it to load
+    var checkInterval = setInterval(function() {
+      if (typeof htmlToImage !== 'undefined') {
+        clearInterval(checkInterval);
+        hideLoadingAndInit();
+      }
+    }, 50);
+    // Safety timeout — init anyway after 3s
+    setTimeout(function() {
+      clearInterval(checkInterval);
+      hideLoadingAndInit();
+    }, 3000);
+  } else {
+    hideLoadingAndInit();
+  }
 }
 
 if (document.readyState === 'loading') {
