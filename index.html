@@ -316,6 +316,12 @@ input[type="date"] { min-height: 44px; }
 .jo-row { display: flex; gap: 12px; padding: 4px 0; align-items: baseline; }
 .jo-row-label { font-weight: 700; color: #1e3a8a; width: 200px; flex-shrink: 0; font-size: 13px; }
 .jo-row-value { flex: 1; color: #dc2626; font-weight: 700; font-size: 15px; word-break: break-word; }
+/* Highlighted rows (Width / Length / Height) — Option B: light blue + navy border */
+.jo-row.highlight {
+  background: #dbeafe;
+  padding: 6px 10px; margin: 2px -10px;
+  border-radius: 6px; border-left: 4px solid #1e3a8a;
+}
 
 /* Process cards grid */
 .jo-process-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 6px; }
@@ -826,8 +832,9 @@ function renderPreviewHTML(d) {
   var p = d.production;
   var a = d.approval;
 
-  function row(label, value, fullWidth) {
-    return '<div class="jo-row"><div class="jo-row-label">' + esc(label) + ':</div><div class="jo-row-value">' + (esc(value) || '—') + '</div></div>';
+  function row(label, value, fullWidth, highlight) {
+    var cls = 'jo-row' + (highlight ? ' highlight' : '');
+    return '<div class="' + cls + '"><div class="jo-row-label">' + esc(label) + ':</div><div class="jo-row-value">' + (esc(value) || '—') + '</div></div>';
   }
 
   function processCard(cardClass, icon, num, name, rows) {
@@ -877,9 +884,9 @@ function renderPreviewHTML(d) {
     row('Packing', d.product.packing) +
     row('Quantity', d.product.quantity) +
     row('Price', d.product.price) +
-    row('Width', d.product.sizeL ? d.product.sizeL + ' mm' : '') +
-    row('Length', d.product.sizeW ? d.product.sizeW + ' mm' : '') +
-    row('Height', d.product.sizeH ? d.product.sizeH + ' mm' : '') +
+    row('Width',  d.product.sizeL ? d.product.sizeL + ' mm' : '', false, true) +
+    row('Length', d.product.sizeW ? d.product.sizeW + ' mm' : '', false, true) +
+    row('Height', d.product.sizeH ? d.product.sizeH + ' mm' : '', false, true) +
     row('Material', formatChipArray(d.product.material)) +
     row('GSM', d.product.gsm) +
     row('Delivery Date', formatDeliveryDate(d.product.deliveryDate)) +
