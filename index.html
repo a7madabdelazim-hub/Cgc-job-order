@@ -484,6 +484,7 @@ var icons = {
 };
 
 /* ===================== CHIP OPTIONS ===================== */
+var ORDER_TYPE_OPTIONS = ['New Order', 'Reorder', 'Modify'];
 var MATERIAL_OPTIONS = ['FBB', 'GREY BACK', 'KRAFT'];
 var COLOR_OPTIONS = ['CMYK', 'Spcl Color'];  // for Outside/Inside (Printing)
 var WATER_BASE_OUT_OPTIONS = ['Glossy', 'Matte', 'Ultra Glossy'];
@@ -499,7 +500,7 @@ function createDefaultState() {
     company: { name: FIXED_COMPANY_NAME },
     jobOrderNo: JOB_ORDER_PREFIX + '00125',
     date: todaysDate(),
-    customer: { customerName: '', salesRepresentative: '' },
+    customer: { customerName: '', salesRepresentative: '', orderType: [] },
     product: {
       productName: '', packing: '', quantity: '', price: '',
       sizeL: '', sizeW: '', sizeH: '',
@@ -563,6 +564,13 @@ function toggleArrayValue(arr, value) {
   return arr.concat([value]);
 }
 
+// Single-select toggle: selecting a chip replaces the whole selection (used for Order Type)
+function toggleSingleSelect(arr, value) {
+  if (!Array.isArray(arr)) arr = [];
+  if (arr.indexOf(value) >= 0) return [];
+  return [value];
+}
+
 // Format chip array for display
 function formatChipArray(arr) {
   if (!Array.isArray(arr) || arr.length === 0) return '';
@@ -617,10 +625,11 @@ function esc(s) {
 }
 
 /* ===================== CHIPS RENDERING ===================== */
-function renderChips(path, options, selectedArr, rerenderOnChange) {
+function renderChips(path, options, selectedArr, rerenderOnChange, singleSelect) {
   var selected = Array.isArray(selectedArr) ? selectedArr : [];
   var html = '<div class="chip-group" data-chip-group="' + path + '"' +
-    (rerenderOnChange ? ' data-rerender="true"' : '') + '>';
+    (rerenderOnChange ? ' data-rerender="true"' : '') +
+    (singleSelect ? ' data-single="true"' : '') + '>';
   options.forEach(function(opt) {
     var isSelected = selected.indexOf(opt) >= 0;
     html += '<button type="button" class="chip' + (isSelected ? ' selected' : '') +
@@ -674,6 +683,10 @@ function renderForm() {
         <label class="form-label">Sales Representative</label>
         <input class="form-input" type="text" data-path="customer.salesRepresentative" value="${esc(d.customer.salesRepresentative)}">
       </div>
+      <div class="form-field full">
+        <label class="form-label">Order Type</label>
+        ${renderChips('customer.orderType', ORDER_TYPE_OPTIONS, d.customer.orderType, false, true)}
+      </div>
     </div>
   `);
 
@@ -686,27 +699,27 @@ function renderForm() {
       </div>
       <div class="form-field">
         <label class="form-label">Packing</label>
-        <input class="form-input" type="text" inputmode="numeric" data-path="product.packing" value="${esc(d.product.packing)}">
+        <input class="form-input" type="text" inputmode="decimal" data-path="product.packing" value="${esc(d.product.packing)}">
       </div>
       <div class="form-field">
         <label class="form-label">Quantity</label>
-        <input class="form-input" type="text" inputmode="numeric" data-path="product.quantity" value="${esc(d.product.quantity)}">
+        <input class="form-input" type="text" inputmode="decimal" data-path="product.quantity" value="${esc(d.product.quantity)}">
       </div>
       <div class="form-field">
         <label class="form-label">Price</label>
-        <input class="form-input" type="text" inputmode="numeric" data-path="product.price" value="${esc(d.product.price)}">
+        <input class="form-input" type="text" inputmode="decimal" data-path="product.price" value="${esc(d.product.price)}">
       </div>
       <div class="form-field">
-        <label class="form-label">Width (mm)</label>
-        <input class="form-input" type="text" inputmode="numeric" data-path="product.sizeL" value="${esc(d.product.sizeL)}">
+        <label class="form-label">Width</label>
+        <input class="form-input" type="text" inputmode="decimal" data-path="product.sizeL" value="${esc(d.product.sizeL)}">
       </div>
       <div class="form-field">
-        <label class="form-label">Length (mm)</label>
-        <input class="form-input" type="text" inputmode="numeric" data-path="product.sizeW" value="${esc(d.product.sizeW)}">
+        <label class="form-label">Length</label>
+        <input class="form-input" type="text" inputmode="decimal" data-path="product.sizeW" value="${esc(d.product.sizeW)}">
       </div>
       <div class="form-field">
-        <label class="form-label">Height (mm)</label>
-        <input class="form-input" type="text" inputmode="numeric" data-path="product.sizeH" value="${esc(d.product.sizeH)}">
+        <label class="form-label">Height</label>
+        <input class="form-input" type="text" inputmode="decimal" data-path="product.sizeH" value="${esc(d.product.sizeH)}">
       </div>
       <div class="form-field full">
         <label class="form-label">Material</label>
@@ -714,7 +727,7 @@ function renderForm() {
       </div>
       <div class="form-field">
         <label class="form-label">GSM</label>
-        <input class="form-input" type="text" inputmode="numeric" data-path="product.gsm" value="${esc(d.product.gsm)}">
+        <input class="form-input" type="text" inputmode="decimal" data-path="product.gsm" value="${esc(d.product.gsm)}">
       </div>
       <div class="form-field">
         <label class="form-label">Delivery Date</label>
@@ -906,18 +919,19 @@ function renderPreviewHTML(d) {
   // Section 1: Customer
   html += joSection('1. CUSTOMER INFORMATION', 'dark',
     row('Customer Name', d.customer.customerName) +
-    row('Sales Representative', d.customer.salesRepresentative)
+    row('Sales Representative', d.customer.salesRepresentative) +
+    row('Order Type', formatChipArray(d.customer.orderType))
   );
 
   // Section 2: Product — renamed labels: Width/Length/Height
   html += joSection('2. PRODUCT INFORMATION', 'light',
     row('Product Name', d.product.productName) +
-    row('Packing', d.product.packing) +
-    row('Quantity', d.product.quantity, false, 'amber') +
+    row('Packing', d.product.packing ? d.product.packing + ' PCS' : '') +
+    row('Quantity', d.product.quantity ? d.product.quantity + ' PCS' : '', false, 'amber') +
     row('Price', d.product.price, false, 'green') +
-    row('Width',  d.product.sizeL ? d.product.sizeL + ' mm' : '', false, true) +
-    row('Length', d.product.sizeW ? d.product.sizeW + ' mm' : '', false, true) +
-    row('Height', d.product.sizeH ? d.product.sizeH + ' mm' : '', false, true) +
+    row('Width',  d.product.sizeL, false, true) +
+    row('Length', d.product.sizeW, false, true) +
+    row('Height', d.product.sizeH, false, true) +
     row('Material', formatChipArray(d.product.material)) +
     row('GSM', d.product.gsm, false, 'purple') +
     row('Delivery Date', formatDeliveryDate(d.product.deliveryDate)) +
@@ -1096,13 +1110,14 @@ function attachListeners() {
         var value = chip.getAttribute('data-chip-value');
         var group = chip.closest('.chip-group');
         var rerender = group && group.getAttribute('data-rerender') === 'true';
+        var singleSelect = group && group.getAttribute('data-single') === 'true';
         if (path) {
           var currentArr = getValue(state, path);
-          var newArr = toggleArrayValue(currentArr, value);
+          var newArr = singleSelect ? toggleSingleSelect(currentArr, value) : toggleArrayValue(currentArr, value);
           state = setValue(state, path, newArr);
 
-          if (rerender) {
-            // Re-render form to show/hide Spcl Color inputs
+          if (rerender || singleSelect) {
+            // Re-render form to show/hide Spcl Color inputs, or refresh single-select chip states
             formContainer.innerHTML = renderForm();
           } else {
             // Just toggle the chip class
