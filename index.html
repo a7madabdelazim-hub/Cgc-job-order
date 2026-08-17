@@ -456,7 +456,7 @@ var MOLD_OPTIONS = ['New', 'Available', 'Gluing Folding M/C', 'Window With PE'];
 function createDefaultState() {
   return {
     company: { name: FIXED_COMPANY_NAME },
-    jobOrderNo: JOB_ORDER_PREFIX + '00125',
+    jobOrderNo: generateNextJobOrderNo(),
     date: todaysDate(),
     customer: { customerName: '', salesRepresentative: '', destination: '', orderType: [] },
     product: {
@@ -654,6 +654,55 @@ function normalizeJobOrderNo(value) {
   if (!v) return JOB_ORDER_PREFIX;
   if (v.indexOf(JOB_ORDER_PREFIX) === 0) return v;
   return JOB_ORDER_PREFIX + v.replace(/^[^a-zA-Z0-9]+/, '');
+}
+
+// ===== AUTO-INCREMENTING JOB ORDER NUMBER =====
+// The suffix after JOB_ORDER_PREFIX (e.g. "00125") is remembered across
+// visits in localStorage, so every new order/export continues from the last
+// number used instead of always starting back at a fixed value. The user can
+// still freely edit the number by hand for any single order — that edit just
+// doesn't change the auto-increment sequence unless it goes on to be
+// exported (see recordJobOrderNumberUsed, called after a successful export).
+var JOB_ORDER_NUMBER_STORAGE_KEY = 'cgcJobOrderLastNumber';
+
+function padJobOrderNumber(n) {
+  var s = String(n);
+  while (s.length < 5) s = '0' + s;
+  return s;
+}
+
+function getLastUsedJobOrderNumber() {
+  try {
+    var raw = window.localStorage.getItem(JOB_ORDER_NUMBER_STORAGE_KEY);
+    var n = parseInt(raw, 10);
+    if (!isNaN(n) && n >= 0) return n;
+  } catch (e) {
+    // localStorage unavailable (private browsing, etc.) — fall back below.
+  }
+  return 124; // so the very first generated number matches the old fixed default of 00125
+}
+
+function setLastUsedJobOrderNumber(n) {
+  try { window.localStorage.setItem(JOB_ORDER_NUMBER_STORAGE_KEY, String(n)); } catch (e) {}
+}
+
+// Builds the next suggested job order number: JOB_ORDER_PREFIX + last-used + 1.
+function generateNextJobOrderNo() {
+  var next = getLastUsedJobOrderNumber() + 1;
+  return JOB_ORDER_PREFIX + padJobOrderNumber(next);
+}
+
+// Called once an export has actually succeeded, so the number that was just
+// exported becomes the new "last used" number — the next new order/export
+// will suggest one higher. Uses Math.max so manually typing a *lower* number
+// for one export doesn't roll the sequence backwards.
+function recordJobOrderNumberUsed(jobOrderNoValue) {
+  var suffix = jobOrderSuffix(String(jobOrderNoValue || ''));
+  var m = /(\d+)/.exec(suffix);
+  if (!m) return;
+  var used = parseInt(m[1], 10);
+  if (isNaN(used)) return;
+  setLastUsedJobOrderNumber(Math.max(getLastUsedJobOrderNumber(), used));
 }
 
 function isIOS() {
@@ -1473,6 +1522,10 @@ function doExport(kind) {
         // so there's always a way to get the image off the phone.
         return attemptNativeShare(watermarkedUrl, filename).then(function(shared) {
           if (!shared) autoSaveOrOpen(watermarkedUrl, filename);
+          // Export succeeded — advance the auto-increment sequence so the
+          // *next* new order/export suggests the following number instead
+          // of repeating this one.
+          recordJobOrderNumberUsed(state.jobOrderNo);
           setBusy(null);
         });
       })
