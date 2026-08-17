@@ -1064,12 +1064,12 @@ function renderApp() {
           <img class="topbar-logo" src="${LOGO_DATA_URL}" alt="Century Gate Logo">
           <div>
             <div class="topbar-title">Century Gate Job Order</div>
-            <div class="topbar-sub">Fill the form, export PNG</div>
+            <div class="topbar-sub">Fill the form, export image</div>
           </div>
         </div>
         <div class="topbar-actions">
           <button class="btn btn-outline" data-action="reset" ${busy ? 'disabled' : ''}>${icons.rotateCcw} Reset</button>
-          <button class="btn btn-primary" data-action="png" ${busy ? 'disabled' : ''}>${icons.fileImage} ${busy === 'png' ? 'Exporting…' : 'Export PNG'}</button>
+          <button class="btn btn-primary" data-action="png" ${busy ? 'disabled' : ''}>${icons.fileImage} ${busy === 'png' ? 'Exporting…' : 'Export Image'}</button>
         </div>
       </div>
     </header>
@@ -1126,7 +1126,7 @@ function renderApp() {
   var footer = `
     <footer class="app-footer">
       <div class="app-footer-inner">
-        <span>Fill the form, see the live preview, export PNG.</span>
+        <span>Fill the form, see the live preview, export image.</span>
         <span>Your data stays in your browser.</span>
       </div>
     </footer>
@@ -1383,6 +1383,22 @@ function applyWatermark(basePngDataUrl, logoDataUrl) {
   });
 }
 
+// Rejects after `ms` milliseconds if the wrapped promise hasn't already
+// settled. html-to-image can occasionally hang indefinitely on iOS Safari
+// (e.g. while it tries to inline a resource) with no error and no
+// resolution, which previously left the button stuck on "Exporting…"
+// forever with no feedback. Racing every export against this timeout
+// guarantees setBusy(null) + an alert always fire eventually.
+function withTimeout(promise, ms, message) {
+  return new Promise(function(resolve, reject) {
+    var timer = setTimeout(function() { reject(new Error(message)); }, ms);
+    promise.then(
+      function(v) { clearTimeout(timer); resolve(v); },
+      function(e) { clearTimeout(timer); reject(e); }
+    );
+  });
+}
+
 function doExport(kind) {
   if (busy) return;
   if (typeof htmlToImage === 'undefined') {
@@ -1390,61 +1406,77 @@ function doExport(kind) {
     return;
   }
 
-  // 0. Validate required fields before doing any export work. This is a
-  // warn-not-block check: missing fields are listed and the user can choose
-  // to export anyway (e.g. a deliberately partial/draft order) or go back.
-  var missing = getMissingRequiredFields(state);
-  if (missing.length) {
-    var proceed = confirm(
-      'The following required fields are empty:\n\n' +
-      missing.map(function(f) { return '• ' + f; }).join('\n') +
-      '\n\nExport anyway?'
-    );
-    if (!proceed) return;
-  }
+  try {
+    // 0. Validate required fields before doing any export work. This is a
+    // warn-not-block check: missing fields are listed and the user can choose
+    // to export anyway (e.g. a deliberately partial/draft order) or go back.
+    var missing = getMissingRequiredFields(state);
+    if (missing.length) {
+      var proceed = confirm(
+        'The following required fields are empty:\n\n' +
+        missing.map(function(f) { return '• ' + f; }).join('\n') +
+        '\n\nExport anyway?'
+      );
+      if (!proceed) return;
+    }
 
-  setBusy(kind);
-  var filename = generateExportFilename(state);
+    setBusy(kind);
+    var filename = generateExportFilename(state);
 
-  // 1. Flush any pending debounced preview update (schedulePreviewUpdate uses
-  //    rAF), so the export element is guaranteed to reflect the latest state
-  //    rather than possibly capturing a stale/in-flight render.
-  if (rafId) {
-    cancelAnimationFrame(rafId);
-    rafId = null;
-    updatePreviewOnly();
-  }
+    // 1. Flush any pending debounced preview update (schedulePreviewUpdate uses
+    //    rAF), so the export element is guaranteed to reflect the latest state
+    //    rather than possibly capturing a stale/in-flight render.
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+      updatePreviewOnly();
+    }
 
-  var el = getExportElement();
-  if (!el) {
-    setBusy(null);
-    return;
-  }
+    var el = getExportElement();
+    if (!el) {
+      alert('Could not find the order preview to export. Please try again.');
+      setBusy(null);
+      return;
+    }
 
-  // 2. Wait for the logo to be fully decoded (near-instant after first run,
-  //    since logoReadyPromise is created once at startup) and for the browser
-  //    to paint the just-flushed preview, THEN capture. Only PNG export is
-  //    supported; PDF export has been permanently removed.
-  Promise.all([logoReadyPromise, waitForNextPaint()])
-    .then(function() {
-      return htmlToImage.toPng(el, { pixelRatio: 2, backgroundColor: '#ffffff' });
-    })
-    .then(function(dataUrl) {
-      return applyWatermark(dataUrl, LOGO_DATA_URL);
-    })
-    .then(function(watermarkedUrl) {
-      // 3. Try the native share sheet first; if it's unsupported, rejected,
-      // or the user cancels it, fall back to the existing save/download modal
-      // so there's always a way to get the image off the phone.
-      return attemptNativeShare(watermarkedUrl, filename).then(function(shared) {
-        if (!shared) autoSaveOrOpen(watermarkedUrl, filename);
+    // 2. Wait for the logo to be fully decoded (near-instant after first run,
+    //    since logoReadyPromise is created once at startup) and for the browser
+    //    to paint the just-flushed preview, THEN capture. Only PNG export is
+    //    supported; PDF export has been permanently removed.
+    //    Every async step is wrapped in withTimeout so a stalled/never-resolving
+    //    step (the historical cause of an export that "just loads forever")
+    //    always ends in an alert + a re-enabled button instead of silence.
+    withTimeout(Promise.all([logoReadyPromise, waitForNextPaint()]), 8000, 'Timed out preparing the preview. Please try again.')
+      .then(function() {
+        return withTimeout(
+          htmlToImage.toPng(el, { pixelRatio: 2, backgroundColor: '#ffffff' }),
+          20000,
+          'Image generation timed out. Please try again — if it keeps happening, try closing and reopening the app.'
+        );
+      })
+      .then(function(dataUrl) {
+        return withTimeout(applyWatermark(dataUrl, LOGO_DATA_URL), 8000, 'Timed out applying the watermark.');
+      })
+      .then(function(watermarkedUrl) {
+        // 3. Try the native share sheet first; if it's unsupported, rejected,
+        // or the user cancels it, fall back to the existing save/download modal
+        // so there's always a way to get the image off the phone.
+        return attemptNativeShare(watermarkedUrl, filename).then(function(shared) {
+          if (!shared) autoSaveOrOpen(watermarkedUrl, filename);
+          setBusy(null);
+        });
+      })
+      .catch(function(err) {
+        alert('Export failed: ' + (err && err.message ? err.message : err));
         setBusy(null);
       });
-    })
-    .catch(function(err) {
-      alert('Export failed: ' + err.message);
-      setBusy(null);
-    });
+  } catch (err) {
+    // Catches any synchronous throw before the promise chain even starts
+    // (e.g. bad state shape), which previously left busy=kind forever with
+    // the button stuck on "Exporting…" and no feedback at all.
+    alert('Export failed: ' + (err && err.message ? err.message : err));
+    setBusy(null);
+  }
 }
 
 function setBusy(kind) {
@@ -1455,7 +1487,7 @@ function setBusy(kind) {
     if (action === 'png') {
       btn.disabled = !!kind;
       var icon = icons.fileImage;
-      var label = kind === action ? 'Exporting…' : 'Export PNG';
+      var label = kind === action ? 'Exporting…' : 'Export Image';
       btn.innerHTML = icon + ' ' + label;
     } else if (action === 'reset') {
       btn.disabled = !!kind;
