@@ -1316,19 +1316,24 @@ function slugifyForFilename(value) {
   return String(value)
     .trim()
     .replace(/[\\/:*?"<>|]+/g, '')   // strip characters illegal in filenames
-    .replace(/\s+/g, '-');           // spaces -> hyphens
+    .replace(/[_-]+/g, ' ')          // underscores/hyphens -> spaces
+    .replace(/\s+/g, ' ')            // collapse repeated whitespace
+    .trim();
 }
 
-// Builds "JobOrder_CUSTOMER_PRODUCT_DESTINATION.png" from the current state.
+// Builds "CUSTOMER PRODUCT DESTINATION.png" from the current state — plain
+// space-separated words, no "JobOrder" prefix and no underscores/hyphens.
 // Any missing segment (customer, product, or destination) is simply omitted
-// rather than leaving a stray underscore or the literal word "undefined".
+// rather than leaving a stray space or the literal word "undefined". The
+// .png extension is required for the file to open as an image — it isn't
+// shown as part of the visible name on iOS when saved to Photos.
 function generateExportFilename(d) {
   var parts = [
     slugifyForFilename(d.customer.customerName),
     slugifyForFilename(d.product.productName),
     slugifyForFilename(d.customer.destination)
   ].filter(function(p) { return p; });
-  var name = parts.length ? 'JobOrder_' + parts.join('_') : 'JobOrder_export';
+  var name = parts.length ? parts.join(' ') : 'JobOrder Export';
   return name + '.png';
 }
 
